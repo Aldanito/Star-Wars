@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -13,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, ChevronLeft, ChevronRight, AlertCircle, Heart, GitCompare, Star } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
-import { ComparisonCharacter, Character } from '@/types/swapi';
+import { ComparisonCharacter } from '@/types/swapi';
 import './App.css';
 
 const queryClient = new QueryClient({
@@ -26,9 +27,11 @@ const queryClient = new QueryClient({
 });
 
 function StarWarsApp() {
+  const navigate = useNavigate();
+  const { characterId } = useParams();
+  
   const [currentPage, setCurrentPage] = useState(1);
   const [previousPage, setPreviousPage] = useState(1);
-  const [selectedCharacter, setSelectedCharacter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [genderFilter, setGenderFilter] = useState('all');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -122,11 +125,11 @@ function StarWarsApp() {
   }, [showFavoritesOnly]);
   
   const handleCharacterSelect = (uid: string) => {
-    setSelectedCharacter(uid);
+    navigate(`/character/${uid}`);
   };
   
   const handleCloseModal = () => {
-    setSelectedCharacter(null);
+    navigate('/');
   };
   
   const handlePageChange = (newPage: number) => {
@@ -380,12 +383,12 @@ function StarWarsApp() {
           </>
         )}
         
-        {selectedCharacter && (
+        {characterId && (
           <CharacterModal
-            uid={selectedCharacter}
+            uid={characterId}
             onClose={handleCloseModal}
             onToggleFavorite={toggleFavorite}
-            isFavorite={isFavorite(selectedCharacter)}
+            isFavorite={isFavorite(characterId)}
           />
         )}
         
@@ -405,7 +408,12 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <StarWarsApp />
+        <Router>
+          <Routes>
+            <Route path="/" element={<StarWarsApp />} />
+            <Route path="/character/:characterId" element={<StarWarsApp />} />
+          </Routes>
+        </Router>
       </ThemeProvider>
     </QueryClientProvider>
   );

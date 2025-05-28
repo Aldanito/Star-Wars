@@ -2,154 +2,81 @@ import { SwapiListResponse, SwapiResponse, CharacterDetails, Character } from '@
 
 const BASE_URL = 'https://swapi.tech/api';
 
-type CacheableData = SwapiListResponse | SwapiResponse<CharacterDetails> | Character[];
-
-const cache = new Map<string, CacheEntry<CacheableData>>();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-interface CacheEntry<T> {
-  data: T;
-  timestamp: number;
-}
-
-const getCachedData = <T extends CacheableData>(key: string): T | null => {
-  const entry = cache.get(key) as CacheEntry<T> | undefined;
-  if (entry && Date.now() - entry.timestamp < CACHE_DURATION) {
-    return entry.data;
-  }
-  return null;
-};
-
-const setCachedData = <T extends CacheableData>(key: string, data: T): void => {
-  cache.set(key, { data, timestamp: Date.now() });
-};
-
 export const swapiApi = {
   async getPeople(page: number = 1): Promise<SwapiListResponse> {
-    const cacheKey = `people-page-${page}`;
-    const cached = getCachedData<SwapiListResponse>(cacheKey);
-    if (cached) return cached;
-
     const response = await fetch(`${BASE_URL}/people?page=${page}&limit=12`);
     if (!response.ok) {
       throw new Error('Failed to fetch people');
     }
-    const data: SwapiListResponse = await response.json();
-    setCachedData(cacheKey, data);
-    return data;
+    return response.json();
   },
 
   async getPersonDetails(uid: string): Promise<SwapiResponse<CharacterDetails>> {
-    const cacheKey = `person-${uid}`;
-    const cached = getCachedData<SwapiResponse<CharacterDetails>>(cacheKey);
-    if (cached) return cached;
-
     const response = await fetch(`${BASE_URL}/people/${uid}`);
     if (!response.ok) {
       throw new Error('Failed to fetch person details');
     }
-    const data: SwapiResponse<CharacterDetails> = await response.json();
-    setCachedData(cacheKey, data);
-    return data;
+    return response.json();
   },
 
-  async searchPeople(query: string, genderFilter?: string): Promise<SwapiListResponse> {
-    const allCharacters = await this.getAllPeople();
-    let filteredResults = allCharacters.filter(character =>
-      character.name.toLowerCase().includes(query.toLowerCase())
-    );
-
-    if (genderFilter && genderFilter !== 'all') {
-      const uids = filteredResults.map(character => character.uid);
-      const detailsMap = await this.getBatchPersonDetails(uids);
-      
-      filteredResults = filteredResults.filter((character) => {
-        const details = detailsMap.get(character.uid);
-        return details?.result?.properties?.gender === genderFilter;
-      });
-    }
-    
-    return {
-      message: 'ok',
-      total_records: filteredResults.length,
-      total_pages: Math.ceil(filteredResults.length / 10),
-      previous: null,
-      next: null,
-      results: filteredResults.slice(0, 10)
-    };
+  async searchPeople(_query: string, _genderFilter?: string): Promise<SwapiListResponse> {
+   
+    throw new Error('Use useSearchPeople hook instead of direct API call');
   },
 
   async getAllPeople(): Promise<Character[]> {
-    const cacheKey = 'all-people';
-    const cached = getCachedData<Character[]>(cacheKey);
-    if (cached) return cached;
-
-    const maxPages = 9; 
-    const pagePromises: Promise<SwapiListResponse>[] = [];
+    const maxPages = 9;
+    const allCharacters: Character[] = [];
     
-    const firstPage = await this.getPeople(1);
-    const characters: Character[] = [...firstPage.results];
-    
-    if (firstPage.next) {
-      const totalPages = Math.min(maxPages, firstPage.total_pages || 9);
+    try {
+      const firstPage = await this.getPeople(1);
+      allCharacters.push(...firstPage.results);
       
-      for (let page = 2; page <= totalPages; page++) {
-        pagePromises.push(this.getPeople(page));
-      }
-      
-      try {
+      if (firstPage.next && firstPage.total_pages) {
+        const totalPages = Math.min(maxPages, firstPage.total_pages);
+        
+        const pagePromises: Promise<SwapiListResponse>[] = [];
+        for (let page = 2; page <= totalPages; page++) {
+          pagePromises.push(this.getPeople(page));
+        }
+        
         const responses = await Promise.allSettled(pagePromises);
         
         responses.forEach((result) => {
           if (result.status === 'fulfilled' && result.value?.results) {
-            characters.push(...result.value.results);
+            allCharacters.push(...result.value.results);
           }
         });
-      } catch (error) {
-        console.warn('Some pages failed to load:', error);
       }
+    } catch (error) {
+      console.error('Failed to fetch all people:', error);
+      throw error;
     }
 
-    setCachedData(cacheKey, characters);
-    return characters;
+    return allCharacters;
   },
 
   async getBatchPersonDetails(uids: string[]): Promise<Map<string, SwapiResponse<CharacterDetails>>> {
     const results = new Map<string, SwapiResponse<CharacterDetails>>();
-    const uncachedUids: string[] = [];
     
-    for (const uid of uids) {
-      const cacheKey = `person-${uid}`;
-      const cached = getCachedData<SwapiResponse<CharacterDetails>>(cacheKey);
-      if (cached) {
-        results.set(uid, cached);
-      } else {
-        uncachedUids.push(uid);
+    const promises = uids.map(async (uid: string) => {
+      try {
+        const details = await this.getPersonDetails(uid);
+        return { uid, details };
+      } catch (error) {
+        console.warn(`Failed to fetch details for ${uid}:`, error);
+        return { uid, details: null };
       }
-    }
+    });
     
-    if (uncachedUids.length > 0) {
-      const promises = uncachedUids.map((uid: string) => 
-        this.getPersonDetails(uid).catch((error: Error) => {
-          console.warn(`Failed to fetch details for ${uid}:`, error);
-          return null;
-        })
-      );
-      
-      const responses = await Promise.allSettled(promises);
-      
-      responses.forEach((result, index) => {
-        if (result.status === 'fulfilled' && result.value) {
-          const uid = uncachedUids[index];
-          results.set(uid, result.value);
-        }
-      });
-    }
+    const responses = await Promise.allSettled(promises);
+    
+    responses.forEach((result) => {
+      if (result.status === 'fulfilled' && result.value.details) {
+        results.set(result.value.uid, result.value.details);
+      }
+    });
     
     return results;
-  },
-
-  clearCache() {
-    cache.clear();
   }
 };

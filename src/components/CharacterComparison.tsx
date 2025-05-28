@@ -1,30 +1,12 @@
-import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { VisuallyHidden } from '@/components/ui/visually-hidden';
 import { X, User, Calendar, Ruler, Weight, Eye } from 'lucide-react';
-
-interface Character {
-  uid: string;
-  properties: {
-    name: string;
-    gender: string;
-    birth_year: string;
-    height: string;
-    mass: string;
-    eye_color: string;
-  };
-}
-
-interface QueryResult {
-  data: {
-    result: Character;
-  };
-}
+import { UseQueryResult } from '@tanstack/react-query';
+import { SwapiResponse, CharacterDetails } from '@/types/swapi';
 
 interface CharacterComparisonProps {
-  characters: QueryResult[];
+  characters: UseQueryResult<SwapiResponse<CharacterDetails>, Error>[];
   onClose: () => void;
   onRemoveCharacter: (index: number) => void;
 }

@@ -1,24 +1,21 @@
-import React from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
+import { usePersonDetails } from '@/hooks/usePeople';
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VisuallyHidden } from '@/components/ui/visually-hidden';
-import { AlertCircle, User, Calendar, Ruler, Weight, Eye, Palette, Users } from 'lucide-react';
-import { usePersonDetails } from '@/hooks/usePeople';
+import { AlertCircle, User, Calendar, Ruler, Weight, Eye, Palette, Users, Share, Copy, Heart } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useState } from 'react';
 
 interface CharacterModalProps {
-  uid: string | null;
+  uid: string;
   onClose: () => void;
-  onToggleFavorite?: (character: { uid: string; name: string }) => void;
-  isFavorite?: boolean;
+  onToggleFavorite: (character: { uid: string; name: string }) => void;
+  isFavorite: boolean;
 }
 
-export function CharacterModal({ uid, onClose, onToggleFavorite, isFavorite }: CharacterModalProps): JSX.Element {
+export function CharacterModal({ uid, onClose, onToggleFavorite, isFavorite }: CharacterModalProps) {
   const { data, isLoading, error } = usePersonDetails(uid || '');
+  const [copied, setCopied] = useState(false);
 
   const getCharacterImage = (name: string) => {
     const encodedName = encodeURIComponent(name);
@@ -32,20 +29,60 @@ export function CharacterModal({ uid, onClose, onToggleFavorite, isFavorite }: C
     return value;
   };
 
+  const shareCharacter = async () => {
+    const url = window.location.href;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${data?.result?.properties?.name} - Star Wars Character`,
+          text: `Check out ${data?.result?.properties?.name} from Star Wars Universe`,
+          url: url,
+        });
+      } catch (err) {
+        copyToClipboard(url);
+      }
+    } else {
+      copyToClipboard(url);
+    }
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+    }
+  };
+
+  const handleToggleFavorite = () => {
+    if (data?.result?.properties?.name) {
+      onToggleFavorite({
+        uid: uid,
+        name: data.result.properties.name
+      });
+    }
+  };
+
   return (
     <Dialog open={!!uid} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-sm w-[90vw] sm:w-full">
-        <VisuallyHidden>
-          <DialogTitle>
-            {data?.result?.properties?.name || 'Character Details'}
-          </DialogTitle>
-        </VisuallyHidden>
-        
-        <VisuallyHidden>
-          <DialogDescription>
-            Detailed information about the Star Wars character
-          </DialogDescription>
-        </VisuallyHidden>
+        {/* Header without duplicate close button */}
+        <DialogHeader>
+          <VisuallyHidden>
+            <DialogTitle>
+              {data?.result?.properties?.name || 'Character Details'}
+            </DialogTitle>
+          </VisuallyHidden>
+          
+          <VisuallyHidden>
+            <DialogDescription>
+              Detailed information about the Star Wars character
+            </DialogDescription>
+          </VisuallyHidden>
+        </DialogHeader>
 
         {isLoading && (
           <div className="space-y-3 p-4">
@@ -147,6 +184,40 @@ export function CharacterModal({ uid, onClose, onToggleFavorite, isFavorite }: C
                 <span className="text-xs font-medium min-w-0">Skin Color:</span>
                 <span className="text-xs capitalize truncate">{formatValue(data.result.properties.skin_color)}</span>
               </div>
+            </div>
+
+            {/* Action buttons at the bottom */}
+            <div className="flex justify-center gap-2 pt-4 border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleToggleFavorite}
+                className="flex items-center gap-2"
+              >
+                <Heart 
+                  className={`h-4 w-4 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} 
+                />
+                {isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={shareCharacter}
+                className="flex items-center gap-2"
+              >
+                {copied ? (
+                  <>
+                    <Copy className="h-4 w-4 text-green-500" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Share className="h-4 w-4" />
+                    Share
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         )}

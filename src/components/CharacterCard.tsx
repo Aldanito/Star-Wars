@@ -1,8 +1,9 @@
-import { Character } from '@/types/swapi';
+import { Character, ComparisonCharacter } from '@/types/swapi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Heart, GitCompare } from 'lucide-react';
+import { Heart, GitCompare, ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface CharacterCardProps {
   character: Character;
@@ -10,7 +11,7 @@ interface CharacterCardProps {
   className?: string;
   isFavorite?: boolean;
   onToggleFavorite?: (character: { uid: string; name: string }) => void;
-  onAddToComparison?: (character: { uid: string; name: string }) => void;
+  onAddToComparison?: (character: ComparisonCharacter) => void;
   isInComparison?: boolean;
 }
 
@@ -22,7 +23,7 @@ export function CharacterCard({
   onToggleFavorite,
   onAddToComparison,
   isInComparison = false
-}: CharacterCardProps): JSX.Element {
+}: CharacterCardProps) {
   const getGenderIcon = (name: string) => {
     const femaleNames = ['leia', 'padme', 'amidala', 'rey', 'jyn'];
     const isFemale = femaleNames.some(n => name.toLowerCase().includes(n));
@@ -34,15 +35,38 @@ export function CharacterCard({
     return `https://ui-avatars.com/api/?name=${encodedName}&background=random&color=fff&size=48`;
   };
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (!(e.target as HTMLElement).closest('button')) {
+      onSelect(character.uid);
+    }
+  };
+
   return (
     <Card 
       className={cn(
         "cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 relative group",
         className
       )}
-      onClick={() => onSelect(character.uid)}
+      onClick={handleCardClick}
     >
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1 z-10">
+        <Link
+          to={`/character/${character.uid}`}
+          className="inline-block"
+          onClick={(e) => e.stopPropagation()}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 bg-background/80 backdrop-blur-sm"
+            title="Open in new tab"
+          >
+            <ExternalLink className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </Link>
+        
         {onToggleFavorite && (
           <Button
             variant="ghost"
@@ -71,7 +95,11 @@ export function CharacterCard({
             )}
             onClick={(e) => {
               e.stopPropagation();
-              onAddToComparison({ uid: character.uid, name: character.name });
+              onAddToComparison({ 
+                uid: character.uid, 
+                name: character.name,
+                url: character.url 
+              });
             }}
           >
             <GitCompare 
